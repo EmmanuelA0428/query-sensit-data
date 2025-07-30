@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Download Ramp Data</title>
+    <style>
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+        }
+
+        select,
+        button,
+        input[type="datetime-local"] {
+            display: block;
+            width: 100%;
+            margin: 10px 0 20px 0;
+            padding: 8px 12px;
+            font-size: 16px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        label {
+            font-weight: bold;
+            margin-top: 10px;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>Select Ramp to Download CSV</h2>
+        <select id="rampSelect">
+            <option value="2166">Ramp 2166</option>
+            <option value="2167">Ramp 2167</option>
+            <option value="2168">Ramp 2168</option>
+            <option value="2169">Ramp 2169</option>
+            <option value="2170">Ramp 2170</option>
+            <option value="2171">Ramp 2171</option>
+        </select>
+        <label for="startTime">Start Time</label>
+        <input type="datetime-local" id="startTime" />
+        <label for="endTime">End Time</label>
+        <input type="datetime-local" id="endTime" />
+        <button onclick="downloadCSV()">Download CSV</button>
+    </div>
+
+    <script>
+        const arcgisURLs = {
+            "2166": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2166/FeatureServer/0",
+            "2167": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2167/FeatureServer/0",
+            "2168": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2168/FeatureServer/0",
+            "2169": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2169/FeatureServer/0",
+            "2170": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2170/FeatureServer/0",
+            "2171": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2171/FeatureServer/0"
+        };
+
+        function formatDateForArcGIS(date) {
+            // Format date as 'YYYY-MM-DD HH:mm:ss'
+            const pad = (n) => n.toString().padStart(2, '0');
+            return date.getFullYear() + '-' +
+                pad(date.getMonth() + 1) + '-' +
+                pad(date.getDate()) + ' ' +
+                pad(date.getHours()) + ':' +
+                pad(date.getMinutes()) + ':' +
+                pad(date.getSeconds());
+        }
+
+        function formatLocalDateTime(value) {
+            // If value is a timestamp (number), convert to formatted string
+            if (typeof value === 'number') {
+                const d = new Date(value);
+                return formatDateForArcGIS(d);
+            }
+            // Otherwise, return as is
+            return value;
+        }
+
+        function downloadCSV() {
+            const rampId = document.getElementById("rampSelect").value;
+            const startInput = document.getElementById("startTime").value;
+            const endInput = document.getElementById("endTime").value;
+
+            let whereClause = "1=1";
+            if (startInput && endInput) {
+                const startDate = new Date(startInput);
+                const endDate = new Date(endInput);
+                if (!isNaN(startDate) && !isNaN(endDate)) {
+                    const startStr = formatDateForArcGIS(startDate);
+                    const endStr = formatDateForArcGIS(endDate);
+                    whereClause = `Local_Date_Time >= TIMESTAMP '${startStr}' AND Local_Date_Time <= TIMESTAMP '${endStr}'`;
+                }
+            }
+
+            const url = arcgisURLs[rampId] + "/query?where=" + encodeURIComponent(whereClause) + "&outFields=*&f=json";
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    const features = data.features || [];
+                    if (features.length === 0) {
+                        alert("No data found.");
+                        return;
+                    }
+
+                    let keys = Object.keys(features[0].attributes);
+                    // Exclude OBJECTID and UTCDateTime fields
+                    keys = keys.filter(k => k !== "OBJECTID" && k !== "UTC_Date_Time");
+
+                    const csvRows = [
+                        keys.join(","),  // header
+                        ...features.map(f => keys.map(k => {
+                            let val = f.attributes[k] ?? "";
+                            if (k === "Local_Date_Time") {
+                                val = formatLocalDateTime(val);
+                            }
+                            return JSON.stringify(val);
+                        }).join(","))
+                    ];
+
+                    const csvString = csvRows.join("\n");
+                    const blob = new Blob([csvString], { type: "text/csv" });
+                    const link = document.createElement("a");
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `Ramp_${rampId}_data.csv`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                })
+                .catch(err => {
+                    console.error("Failed to fetch:", err);
+                    alert("Error fetching data.");
+                });
+        }
+    </script>
+</body>
+
+</html>
