@@ -8,7 +8,7 @@
         .container {
             max-width: 600px;
             margin: 40px auto;
-            padding: 20px;
+            padding: 30px 25px;
             border: 1px solid #ccc;
             border-radius: 8px;
             font-family: Arial, sans-serif;
@@ -20,8 +20,8 @@
         input[type="datetime-local"] {
             display: block;
             width: 100%;
-            margin: 10px 0 20px 0;
-            padding: 8px 12px;
+            margin: 15px 0 25px 0;
+            padding: 10px 14px;
             font-size: 16px;
             border-radius: 4px;
             border: 1px solid #ccc;
@@ -41,7 +41,7 @@
 
         label {
             font-weight: bold;
-            margin-top: 10px;
+            margin-top: 15px;
             display: block;
         }
     </style>
@@ -66,6 +66,20 @@
     </div>
 
     <script>
+        window.onload = function () {
+            function pad(n) {
+                return n.toString().padStart(2, '0');
+            }
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = pad(today.getMonth() + 1);
+            const day = pad(today.getDate());
+            const defaultDateTime = `${year}-${month}-${day}T00:00`;
+
+            document.getElementById("startTime").value = defaultDateTime;
+            document.getElementById("endTime").value = defaultDateTime;
+        };
+
         const arcgisURLs = {
             "2166": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2166/FeatureServer/0",
             "2167": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2167/FeatureServer/0",
