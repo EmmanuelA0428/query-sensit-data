@@ -62,10 +62,26 @@
         <input type="datetime-local" id="startTime" />
         <label for="endTime">End Time</label>
         <input type="datetime-local" id="endTime" />
+        <div id="loadingIndicator"
+            style="display: none; text-align: center; margin-top: -10px; margin-bottom: 15px; color: #333;">
+            ⏳ Preparing your CSV...
+        </div>
         <button onclick="downloadCSV()">Download CSV</button>
     </div>
 
     <script>
+
+        // Ramp info map for tooltips
+        const rampInfo = {
+            "2166": "Ramp 2166 handles air quality near the east gate.",
+            "2167": "Ramp 2167 monitors indoor CO2 and temperature.",
+            "2168": "Ramp 2168 is located near the admin building.",
+            "2169": "Ramp 2169 tracks parking lot emissions.",
+            "2170": "Ramp 2170 handles real-time wind and gas data.",
+            "2171": "Ramp 2171 is located in the north facility zone."
+        };
+
+        // Setting the default start and end time 
         window.onload = function () {
             function pad(n) {
                 return n.toString().padStart(2, '0');
@@ -78,8 +94,15 @@
 
             document.getElementById("startTime").value = defaultDateTime;
             document.getElementById("endTime").value = defaultDateTime;
+
+            // Set tooltips dynamically
+            const rampSelect = document.getElementById("rampSelect");
+            for (const option of rampSelect.options) {
+                option.title = rampInfo[option.value] || "No info available.";
+            }
         };
 
+        // ArcGIS URLs
         const arcgisURLs = {
             "2166": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2166/FeatureServer/0",
             "2167": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2167/FeatureServer/0",
@@ -89,8 +112,24 @@
             "2171": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2171/FeatureServer/0"
         };
 
+        async function fetchAllFeatures(urlBase, whereClause) {
+            let allFeatures = [];
+            let offset = 0;
+            const pageSize = 2000;
+
+            while (true) {
+                const url = `${urlBase}/query?where=${encodeURIComponent(whereClause)}&outFields=*&f=json&resultOffset=${offset}&resultRecordCount=${pageSize}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                const features = data.features || [];
+                allFeatures = allFeatures.concat(features);
+                if (features.length < pageSize) break;
+                offset += pageSize;
+            }
+            return allFeatures;
+        }
+
         function formatDateForArcGIS(date) {
-            // Format date as 'YYYY-MM-DD HH:mm:ss'
             const pad = (n) => n.toString().padStart(2, '0');
             return date.getFullYear() + '-' +
                 pad(date.getMonth() + 1) + '-' +
@@ -101,16 +140,17 @@
         }
 
         function formatLocalDateTime(value) {
-            // If value is a timestamp (number), convert to formatted string
             if (typeof value === 'number') {
                 const d = new Date(value);
                 return formatDateForArcGIS(d);
             }
-            // Otherwise, return as is
             return value;
         }
 
-        function downloadCSV() {
+        async function downloadCSV() {
+            const loadingDiv = document.getElementById("loadingIndicator");
+            loadingDiv.style.display = "block";
+
             const rampId = document.getElementById("rampSelect").value;
             const startInput = document.getElementById("startTime").value;
             const endInput = document.getElementById("endTime").value;
@@ -126,45 +166,39 @@
                 }
             }
 
-            const url = arcgisURLs[rampId] + "/query?where=" + encodeURIComponent(whereClause) + "&outFields=*&f=json";
+            const urlBase = arcgisURLs[rampId];
+            const features = await fetchAllFeatures(urlBase, whereClause);
 
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    const features = data.features || [];
-                    if (features.length === 0) {
-                        alert("No data found.");
-                        return;
+            if (features.length === 0) {
+                alert("No data found.");
+                loadingDiv.style.display = "none";
+                return;
+            }
+
+            let keys = Object.keys(features[0].attributes);
+            keys = keys.filter(k => k !== "OBJECTID" && k !== "UTC_Date_Time");
+
+            const csvRows = [
+                keys.join(","),
+                ...features.map(f => keys.map(k => {
+                    let val = f.attributes[k] ?? "";
+                    if (k === "Local_Date_Time") {
+                        val = formatLocalDateTime(val);
                     }
+                    return JSON.stringify(val);
+                }).join(","))
+            ];
 
-                    let keys = Object.keys(features[0].attributes);
-                    // Exclude OBJECTID and UTCDateTime fields
-                    keys = keys.filter(k => k !== "OBJECTID" && k !== "UTC_Date_Time");
+            const csvString = csvRows.join("\n");
+            const blob = new Blob([csvString], { type: "text/csv" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `Ramp_${rampId}_data.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
 
-                    const csvRows = [
-                        keys.join(","),  // header
-                        ...features.map(f => keys.map(k => {
-                            let val = f.attributes[k] ?? "";
-                            if (k === "Local_Date_Time") {
-                                val = formatLocalDateTime(val);
-                            }
-                            return JSON.stringify(val);
-                        }).join(","))
-                    ];
-
-                    const csvString = csvRows.join("\n");
-                    const blob = new Blob([csvString], { type: "text/csv" });
-                    const link = document.createElement("a");
-                    link.href = URL.createObjectURL(blob);
-                    link.download = `Ramp_${rampId}_data.csv`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                })
-                .catch(err => {
-                    console.error("Failed to fetch:", err);
-                    alert("Error fetching data.");
-                });
+            loadingDiv.style.display = "none";
         }
     </script>
 </body>
