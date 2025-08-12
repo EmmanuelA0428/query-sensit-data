@@ -204,6 +204,7 @@
 
         // Single field name map for all possible fields across all ramps
         const fieldNameMap = {
+            // Gas fields
             "CO": "CO",
             "NO_": "NO",
             "NO2": "NO2",
@@ -221,7 +222,38 @@
             // Mos
             "mos1": "MOS1",
             "mos1_mvRaw": "MOS1 mvRaw",
+            "mos2": "MOS2",
+            "mos2_mvRaw": "MOS2 mvRaw",
+            // tvos 
+            "pid1_PPB_Calc": "TVOC",
+            "pid1_mvRaw": "TVOC Signal",
         };
+
+        const preferredColumnOrder = [
+            "Local_Date_Time",
+            "CO",
+            "NO_",
+            "NO2",
+            "SO2",
+            "O3",
+            "T",
+            "TE",
+            "RH",
+            "P",
+            "WD",
+            "WS",
+            "PM_1_1_0",
+            "PM_1_2_5",
+            "PM_1_10_0",
+            "mos1",
+            "mos1_mvRaw",
+            "mos2",
+            "mos2_mvRaw",
+            "pid1_PPB_Calc",
+            "pid1_mvRaw",
+            "Latitude",
+            "Longitude",
+        ];
 
         // ArcGIS URLs
         const arcgisURLs = {
@@ -453,8 +485,11 @@
                 return;
             }
 
-            let columns = Object.keys(features[0].attributes); // Gets a list of all the keys (columns)
-            columns = columns.filter(k => k !== "OBJECTID" && k !== "UTC_Date_Time"); // Remove the OBJECTID and UTC_Date_Time columns
+            // Get all available keys in data
+            const dataKeys = Object.keys(features[0].attributes);
+
+            // Use preferred order but only keep fields present in data
+            let columns = preferredColumnOrder.filter(col => dataKeys.includes(col));
 
             // Map keys to full descriptive names using single fieldNameMap for all ramps
             const headerKeys = columns.map(k => fieldNameMap[k] || k);
