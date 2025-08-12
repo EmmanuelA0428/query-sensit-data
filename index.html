@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Download Ramp Data</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f9f9f9;
+        }
+
+        .flex-container {
+            display: flex;
+            max-width: 1200px;
+            margin: 40px auto;
+            gap: 20px;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+
+        .left-panel,
+        .right-panel {
+            flex: 1;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 25px 20px 30px 20px;
+            box-sizing: border-box;
+            height: fit-content;
+        }
+
+        .container {
+            flex: 2;
+            padding: 30px 25px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #fff;
+            box-sizing: border-box;
+        }
+
+        select,
+        button,
+        input[type="datetime-local"] {
+            display: block;
+            width: 100%;
+            margin: 15px 0 25px 0;
+            padding: 10px 14px;
+            font-size: 16px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        label {
+            font-weight: bold;
+            margin-top: 15px;
+            display: block;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        .ramp-info-item {
+            margin-bottom: 10px;
+        }
+
+        .ramp-status-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .ramp-status-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .ramp-status-list li:last-child {
+            border-bottom: none;
+        }
+
+        .status-online {
+            color: green;
+            font-weight: bold;
+        }
+
+        .status-offline {
+            color: red;
+            font-weight: bold;
+        }
+
+        /* Added minimal styling for the field mapping table */
+        .field-mapping-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .field-mapping-table th,
+        .field-mapping-table td {
+            border: 1px solid #ccc;
+            padding: 6px 8px;
+            text-align: left;
+        }
+
+        .field-mapping-table th {
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="flex-container">
+        <div class="left-panel" id="leftPanel">
+            <h2>Ramp Information</h2>
+            <div id="rampDetails">
+                <p>Select a ramp to see details.</p>
+            </div>
+        </div>
+
+        <div class="container">
+            <h2>Select Ramp to Download CSV</h2>
+            <select id="rampSelect">
+                <option value="2166">Ramp 2166</option>
+                <option value="2167">Ramp 2167</option>
+                <option value="2168">Ramp 2168</option>
+                <option value="2169">Ramp 2169</option>
+                <option value="2170">Ramp 2170</option>
+                <option value="2171">Ramp 2171</option>
+            </select>
+            <label for="startTime">Start Time</label>
+            <input type="datetime-local" id="startTime" />
+            <label for="endTime">End Time</label>
+            <input type="datetime-local" id="endTime" />
+            <div id="loadingIndicator"
+                style="display: none; text-align: center; margin-top: -10px; margin-bottom: 15px; color: #333;">
+                ⏳ Preparing your CSV...
+            </div>
+            <button onclick="downloadCSV()">Download CSV</button>
+        </div>
+
+        <div class="right-panel" id="rightPanel">
+            <h2>Ramp Status</h2>
+            <ul class="ramp-status-list" id="rampStatusList">
+                <!-- status items inserted here -->
+            </ul>
+        </div>
+    </div>
+
+    <script>
+
+        // Ramp info map for tooltips and left panel details
+        const rampInfo = {
+            "2166": {
+                description: "Ramp 2166 is located near Upson hall",
+                location: "Rtes 5 & 20",
+            },
+            "2167": {
+                description: "Ramp 2167 is located near the intersection of north main street and lafayeete ave",
+                location: "In Geneva near North Street",
+            },
+            "2168": {
+                description: "Ramp 2168 is located near Reidge street and lewis lane",
+                location: "Seneca Falls",
+            },
+            "2169": {
+                description: "Ramp 2169 is located in clark street park.",
+                location: "Geneva Housing Authority – Hawkins Ave",
+            },
+            "2170": {
+                description: "Ramp 2170 is located near lansing",
+                location: "Waterloo",
+            },
+            "2171": {
+                description: "Ramp 2171 is located in the north facility zone.",
+                location: "Desden",
+            }
+        };
+
+        // Ramp status dummy data for right panel
+        const rampStatus = {
+            "2166": { status: "Online", lastOnline: "2024-06-20 14:35" },
+            "2167": { status: "Offline", lastOnline: "2024-06-18 09:20" },
+            "2168": { status: "Online", lastOnline: "2024-06-20 13:50" },
+            "2169": { status: "Online", lastOnline: "2024-06-20 14:10" },
+            "2170": { status: "Offline", lastOnline: "2024-06-17 17:45" },
+            "2171": { status: "Online", lastOnline: "2024-06-20 14:00" }
+        };
+
+        // Single field name map for all possible fields across all ramps
+        const fieldNameMap = {
+            "CO": "CO",
+            "NO_": "NO",
+            "NO2": "NO2",
+            "O3": "O3",
+            "T": "Temperature",
+            "TE": "TE",
+            "RH": "Humidity",
+            "P": "Pressure ",
+            "WD": "Wind Direction",
+            "WS": "Wind Speed",
+            // PM fields
+            "PM_1_1_0": "PM 1.0",
+            "PM_1_2_5": "PM 2.5",
+            "PM_1_10_0": "PM 10.0",
+            // Mos
+            "mos1": "MOS1",
+            "mos1_mvRaw": "MOS1 mvRaw",
+        };
+
+        // ArcGIS URLs
+        const arcgisURLs = {
+            "2166": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2166/FeatureServer/0",
+            "2167": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2167/FeatureServer/0",
+            "2168": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2168/FeatureServer/0",
+            "2169": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2169/FeatureServer/0",
+            "2170": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2170/FeatureServer/0",
+            "2171": "https://services.arcgis.com/gAAqLWNS2IKt1zU1/arcgis/rest/services/Ramp_2171/FeatureServer/0"
+        };
+
+        // Field full names for groups (no descriptions)
+        const group1Fields = {
+            "CO": { fullName: "Carbon Monoxide (ppm)" },
+            "NO": { fullName: "Nitric Oxide (ppb)" },
+            "NO2": { fullName: "Nitrogen Dioxide (ppb)" },
+            "T": { fullName: "Temperature (°C)" },
+            "TE": { fullName: "Thermoelectric Sensor Reading" },
+            "RH": { fullName: "Relative Humidity (%)" },
+            "P": { fullName: "Atmospheric Pressure (hPa)" },
+            "WD": { fullName: "Wind Direction (degrees)" },
+            "WS": { fullName: "Wind Speed (m/s)" },
+            "PM_1_1_0": { fullName: "Particulate Matter 1.0 µm (µg/m³)" },
+            "PM_1_2_5": { fullName: "Particulate Matter 2.5 µm (µg/m³)" },
+            "PM_1_10_0": { fullName: "Particulate Matter 10 µm (µg/m³)" },
+        };
+
+        const group2Fields = {
+            "CO": { fullName: "Carbon Monoxide (ppm)" },
+            "NO": { fullName: "Nitric Oxide (ppb)" },
+            "NO2": { fullName: "Nitrogen Dioxide (ppb)" },
+            "SO2": { fullName: "Sulfur Dioxide (ppb)" },
+            "O3": { fullName: "Ozone (ppb)" },
+            "T": { fullName: "Temperature (°C)" },
+            "TE": { fullName: "Thermoelectric Sensor Reading" },
+            "RH": { fullName: "Relative Humidity (%)" },
+            "P": { fullName: "Atmospheric Pressure (hPa)" },
+            "WD": { fullName: "Wind Direction (degrees)" },
+            "WS": { fullName: "Wind Speed (m/s)" },
+            "PM_1_1_0": { fullName: "Particulate Matter 1.0 µm (µg/m³)" },
+            "PM_1_2_5": { fullName: "Particulate Matter 2.5 µm (µg/m³)" },
+            "PM_1_10_0": { fullName: "Particulate Matter 10 µm (µg/m³)" },
+        };
+
+        const group3Fields = {
+            "NO": { fullName: "Nitric Oxide (ppb)" },
+            "NO2": { fullName: "Nitrogen Dioxide (ppb)" },
+            "H2S": { fullName: "Hydrogen Sulfide (ppb)" },
+            "T": { fullName: "Temperature (°C)" },
+            "TE": { fullName: "Thermoelectric Sensor Reading" },
+            "RH": { fullName: "Relative Humidity (%)" },
+            "P": { fullName: "Atmospheric Pressure (hPa)" },
+            "WD": { fullName: "Wind Direction (degrees)" },
+            "WS": { fullName: "Wind Speed (m/s)" },
+            "PM_1_1_0": { fullName: "Particulate Matter 1.0 µm (µg/m³)" },
+            "PM_1_2_5": { fullName: "Particulate Matter 2.5 µm (µg/m³)" },
+            "PM_1_10_0": { fullName: "Particulate Matter 10 µm (µg/m³)" },
+            "mos2": { fullName: "Metal Oxide Sensor 2" },
+            "mos2_mvRaw": { fullName: "Raw Millivolt Reading from MOS2" },
+            "TVOC": { fullName: "Total Volatile Organic Compounds (ppb)" },
+            "TVOC_Signal": { fullName: "TVOC Signal" },
+        };
+
+        // Ramp to group mapping
+        const rampGroupMap = {
+            "2166": "group1",
+            "2167": "group1",
+            "2168": "group1",
+            "2169": "group2",
+            "2170": "group2",
+            "2171": "group3"
+        };
+
+        // Setting the default start and end time and initializing panels
+        window.onload = async function () {
+            function pad(n) {
+                return n.toString().padStart(2, '0');
+            }
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = pad(today.getMonth() + 1);
+            const day = pad(today.getDate());
+            const defaultDateTime = `${year}-${month}-${day}T00:00`;
+
+            document.getElementById("startTime").value = defaultDateTime;
+            document.getElementById("endTime").value = defaultDateTime;
+
+            // Set tooltips dynamically
+            const rampSelect = document.getElementById("rampSelect");
+            for (const option of rampSelect.options) {
+                const rampId = option.value;
+                option.title = rampInfo[rampId]?.description || "No info available.";
+            }
+
+            // Initialize left panel details for selected ramp
+            updateLeftPanel(rampSelect.value);
+
+            // Update ramp statuses asynchronously and populate right panel
+            await updateRampStatuses();
+
+            // Add event listener for ramp selection change
+            rampSelect.addEventListener('change', function () {
+                updateLeftPanel(this.value);
+            });
+        };
+
+        // Asynchronously update ramp statuses by fetching the latest row for each ramp
+        async function updateRampStatuses() {
+            const now = new Date();
+            const rampIds = Object.keys(arcgisURLs);
+            for (const rampId of rampIds) {
+                try {
+                    const urlBase = arcgisURLs[rampId];
+                    // Build query for most recent row by Local_Date_Time
+                    const queryUrl = `${urlBase}/query?where=1%3D1&orderByFields=Local_Date_Time%20DESC&resultRecordCount=1&outFields=Local_Date_Time&f=json`;
+                    const response = await fetch(queryUrl);
+                    const data = await response.json();
+                    const features = data.features || [];
+                    if (features.length > 0) {
+                        const attr = features[0].attributes;
+                        let localDateTimeRaw = attr["Local_Date_Time"];
+                        let localDateTime;
+                        // Try to parse as number (epoch ms) or as string
+                        if (typeof localDateTimeRaw === "number") {
+                            localDateTime = new Date(localDateTimeRaw);
+                        } else if (typeof localDateTimeRaw === "string") {
+                            // Try to parse string as date
+                            // Some ArcGIS may use "YYYY-MM-DD HH:mm:ss" format
+                            // Replace space with 'T' to help parse
+                            let dtString = localDateTimeRaw.replace(" ", "T");
+                            localDateTime = new Date(dtString);
+                        } else {
+                            localDateTime = null;
+                        }
+                        let diffHours = null;
+                        let status = "Offline";
+                        let lastOnlineStr = "N/A";
+                        if (localDateTime && !isNaN(localDateTime.getTime())) {
+                            diffHours = (now - localDateTime) / (1000 * 60 * 60);
+                            status = diffHours <= 24 ? "Online" : "Offline";
+                            lastOnlineStr = localDateTime.toLocaleString();
+                        }
+                        rampStatus[rampId] = {
+                            status: status,
+                            lastOnline: lastOnlineStr
+                        };
+                    } else {
+                        rampStatus[rampId] = {
+                            status: "Offline",
+                            lastOnline: "N/A"
+                        };
+                    }
+                } catch (e) {
+                    rampStatus[rampId] = {
+                        status: "Offline",
+                        lastOnline: "N/A"
+                    };
+                }
+            }
+            // Refresh the right panel UI
+            populateRampStatusList();
+        }
+
+        async function fetchAllFeatures(urlBase, whereClause) {
+            let allFeatures = [];
+            let offset = 0;
+            const pageSize = 2000;
+
+            while (true) {
+                const url = `${urlBase}/query?where=${encodeURIComponent(whereClause)}&outFields=*&f=json&resultOffset=${offset}&resultRecordCount=${pageSize}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                const features = data.features || [];
+                allFeatures = allFeatures.concat(features);
+                if (features.length < pageSize) break;
+                offset += pageSize;
+            }
+            return allFeatures;
+        }
+
+        function formatDateForArcGIS(date) {
+            const pad = (n) => n.toString().padStart(2, '0');
+            return date.getFullYear() + '-' +
+                pad(date.getMonth() + 1) + '-' +
+                pad(date.getDate()) + ' ' +
+                pad(date.getHours()) + ':' +
+                pad(date.getMinutes()) + ':' +
+                pad(date.getSeconds());
+        }
+
+        function formatLocalDateTime(value) {
+            if (typeof value === 'number') {
+                const d = new Date(value);
+                return formatDateForArcGIS(d);
+            }
+            return value;
+        }
+
+        async function downloadCSV() {
+            const loadingDiv = document.getElementById("loadingIndicator");
+            loadingDiv.style.display = "block";
+
+            const rampId = document.getElementById("rampSelect").value;
+            const startInput = document.getElementById("startTime").value;
+            const endInput = document.getElementById("endTime").value;
+
+            let whereClause = "1=1";
+
+            // Formating the date and setting the where clause 
+            if (startInput && endInput) {
+                const startDate = new Date(startInput); // turn string dates to actual dates
+                const endDate = new Date(endInput);
+                if (!isNaN(startDate) && !isNaN(endDate)) {
+                    const startStr = formatDateForArcGIS(startDate);
+                    const endStr = formatDateForArcGIS(endDate);
+                    whereClause = `Local_Date_Time >= TIMESTAMP '${startStr}' AND Local_Date_Time <= TIMESTAMP '${endStr}'`;
+                }
+            }
+
+            // Get's the URL for the specified
+            const urlBase = arcgisURLs[rampId];
+            // Get all the data for the specified range
+            const features = await fetchAllFeatures(urlBase, whereClause);
+
+
+            if (features.length === 0) {
+                alert("No data found.");
+                loadingDiv.style.display = "none";
+                return;
+            }
+
+            let columns = Object.keys(features[0].attributes); // Gets a list of all the keys (columns)
+            columns = columns.filter(k => k !== "OBJECTID" && k !== "UTC_Date_Time"); // Remove the OBJECTID and UTC_Date_Time columns
+
+            // Map keys to full descriptive names using single fieldNameMap for all ramps
+            const headerKeys = columns.map(k => fieldNameMap[k] || k);
+
+            const csvRows = [
+                headerKeys.join(","),
+                ...features.map(f => columns.map(k => {
+                    let val = f.attributes[k] ?? "";
+                    if (k === "Local_Date_Time") {
+                        val = formatLocalDateTime(val);
+                    }
+                    return JSON.stringify(val);
+                }).join(","))
+            ];
+
+            const csvString = csvRows.join("\n");
+            const blob = new Blob([csvString], { type: "text/csv" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `Ramp_${rampId}_data.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            loadingDiv.style.display = "none";
+        }
+
+        // Update left panel with ramp info and metadata
+        function updateLeftPanel(rampId) {
+            const detailsDiv = document.getElementById("rampDetails");
+            const info = rampInfo[rampId];
+            if (!info) {
+                detailsDiv.innerHTML = "<p>No information available for this ramp.</p>";
+                return;
+            }
+
+            // Determine group for this ramp
+            const group = rampGroupMap[rampId];
+            let fields = {};
+            if (group === "group1") {
+                fields = group1Fields;
+            } else if (group === "group2") {
+                fields = group2Fields;
+            } else if (group === "group3") {
+                fields = group3Fields;
+            }
+
+            // Build the field mapping table HTML (only short name and full name)
+            let tableHTML = '<table class="field-mapping-table"><thead><tr><th>Field Short Name</th><th>Full Name</th></tr></thead><tbody>';
+            for (const shortName in fields) {
+                const field = fields[shortName];
+                tableHTML += `<tr><td>${shortName}</td><td>${field.fullName}</td></tr>`;
+            }
+            tableHTML += '</tbody></table>';
+
+            detailsDiv.innerHTML = `
+                <div class="ramp-info-item"><strong>Ramp Name:</strong> Ramp ${rampId}</div>
+                <div class="ramp-info-item"><strong>Location:</strong> ${info.location}</div>
+                ${tableHTML}
+            `;
+        }
+
+        // Populate right panel with ramp status list
+        function populateRampStatusList() {
+            const statusList = document.getElementById("rampStatusList");
+            statusList.innerHTML = "";
+            for (const rampId in rampStatus) {
+                const stat = rampStatus[rampId];
+                const statusClass = stat.status.toLowerCase() === "online" ? "status-online" : "status-offline";
+                const listItem = document.createElement("li");
+                listItem.innerHTML = `<strong>Ramp ${rampId}:</strong> <span class="${statusClass}">${stat.status}</span><br><small>Last Data Recorded: ${stat.lastOnline}</small>`;
+                statusList.appendChild(listItem);
+            }
+        }
+
+    </script>
+</body>
+
+</html>
