@@ -143,6 +143,8 @@
                 <option value="2170">Ramp 2170</option>
                 <option value="2171">Ramp 2171</option>
             </select>
+
+
             <label for="startTime">Start Time</label>
             <input type="datetime-local" id="startTime" />
             <label for="endTime">End Time</label>
@@ -163,7 +165,6 @@
     </div>
 
     <script>
-
         // Ramp info map for tooltips and left panel details
         const rampInfo = {
             "2166": {
@@ -234,6 +235,7 @@
             "CO",
             "NO_",
             "NO2",
+            "H2S",
             "SO2",
             "O3",
             "T",
@@ -270,6 +272,7 @@
             "CO": { fullName: "Carbon Monoxide (ppm)" },
             "NO": { fullName: "Nitric Oxide (ppb)" },
             "NO2": { fullName: "Nitrogen Dioxide (ppb)" },
+            "H2S": { fullName: "Hydrogen Sulfide (ppb)" },
             "T": { fullName: "Temperature (°C)" },
             "TE": { fullName: "Thermoelectric Sensor Reading" },
             "RH": { fullName: "Relative Humidity (%)" },
@@ -423,8 +426,7 @@
             const pageSize = 2000;
 
             while (true) {
-                const url = `${urlBase}/query?where=${encodeURIComponent(whereClause)}&outFields=*&f=json&resultOffset=${offset}&resultRecordCount=${pageSize}`;
-                const response = await fetch(url);
+                const url = `${urlBase}/query?where=${encodeURIComponent(whereClause)}&outFields=*&orderByFields=Local_Date_Time ASC&f=json&resultOffset=${offset}&resultRecordCount=${pageSize}`; const response = await fetch(url);
                 const data = await response.json();
                 const features = data.features || [];
                 allFeatures = allFeatures.concat(features);
@@ -444,13 +446,18 @@
                 pad(date.getSeconds());
         }
 
+
+        // Come back and change
+
         function formatLocalDateTime(value) {
             if (typeof value === 'number') {
                 const d = new Date(value);
+                d.setHours(d.getHours() + 4);
                 return formatDateForArcGIS(d);
             }
             return value;
         }
+
 
         async function downloadCSV() {
             const loadingDiv = document.getElementById("loadingIndicator");
@@ -458,18 +465,25 @@
 
             const rampId = document.getElementById("rampSelect").value;
             const startInput = document.getElementById("startTime").value;
+            console.log("starts is", startInput);
             const endInput = document.getElementById("endTime").value;
+            console.log(endInput);
 
             let whereClause = "1=1";
 
             // Formating the date and setting the where clause 
             if (startInput && endInput) {
-                const startDate = new Date(startInput); // turn string dates to actual dates
+                const startDate = new Date(startInput);
+
+                console.log(startDate)
+
                 const endDate = new Date(endInput);
+
                 if (!isNaN(startDate) && !isNaN(endDate)) {
                     const startStr = formatDateForArcGIS(startDate);
                     const endStr = formatDateForArcGIS(endDate);
                     whereClause = `Local_Date_Time >= TIMESTAMP '${startStr}' AND Local_Date_Time <= TIMESTAMP '${endStr}'`;
+
                 }
             }
 
