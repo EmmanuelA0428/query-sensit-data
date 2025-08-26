@@ -452,17 +452,37 @@
         function formatLocalDateTime(value) {
             if (typeof value === 'number') {
                 const d = new Date(value);
-                d.setHours(d.getHours() + 4);
                 return formatDateForArcGIS(d);
             }
             return value;
         }
 
-        function parseLocalDateTimeInput(input) {
+
+        function parseLocalDateTimeInput(input, addMinute) {
             // input: "2025-08-26T10:00"
-            // output: "2025-08-26 10:00:00"
-            return input.replace("T", " ") + ":00";
+            const [datePart, timePart] = input.split("T");   // ["2025-08-26", "10:00"]
+            let [hh, mm] = timePart.split(":").map(Number);  // [10, 00]
+
+            // Add 1 min if end 
+            if (addMinute) {
+                mm += 1;
+            }
+            // Add 4 hours
+            hh += 4;
+            if (hh >= 24) {
+                hh -= 24;
+                // move date forward one day
+                const d = new Date(datePart);
+                d.setDate(d.getDate() + 1);
+                const pad = (n) => n.toString().padStart(2, "0");
+                const newDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+                return `${newDate} ${pad(hh)}:${pad(mm)}:00`;
+            }
+
+            const pad = (n) => n.toString().padStart(2, "0");
+            return `${datePart} ${pad(hh)}:${pad(mm)}:00`;
         }
+
 
 
 
@@ -481,9 +501,10 @@
             // Formating the date and setting the where clause 
             if (startInput && endInput) {
                 const startStr = parseLocalDateTimeInput(startInput);
-                const endStr = parseLocalDateTimeInput(endInput);
+                const endStr = parseLocalDateTimeInput(endInput, true);
+                console.log("start and end time", startStr, endStr);
                 whereClause = `Local_Date_Time >= TIMESTAMP '${startStr}' AND Local_Date_Time <= TIMESTAMP '${endStr}'`;
-
+                console.log(whereClause);
                 // Update the start and end times in the UI
             }
 
