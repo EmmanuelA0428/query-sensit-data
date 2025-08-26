@@ -458,6 +458,13 @@
             return value;
         }
 
+        function parseLocalDateTimeInput(input) {
+            // input: "2025-08-26T10:00"
+            // output: "2025-08-26 10:00:00"
+            return input.replace("T", " ") + ":00";
+        }
+
+
 
         async function downloadCSV() {
             const loadingDiv = document.getElementById("loadingIndicator");
@@ -473,18 +480,11 @@
 
             // Formating the date and setting the where clause 
             if (startInput && endInput) {
-                const startDate = new Date(startInput);
+                const startStr = parseLocalDateTimeInput(startInput);
+                const endStr = parseLocalDateTimeInput(endInput);
+                whereClause = `Local_Date_Time >= TIMESTAMP '${startStr}' AND Local_Date_Time <= TIMESTAMP '${endStr}'`;
 
-                console.log(startDate)
-
-                const endDate = new Date(endInput);
-
-                if (!isNaN(startDate) && !isNaN(endDate)) {
-                    const startStr = formatDateForArcGIS(startDate);
-                    const endStr = formatDateForArcGIS(endDate);
-                    whereClause = `Local_Date_Time >= TIMESTAMP '${startStr}' AND Local_Date_Time <= TIMESTAMP '${endStr}'`;
-
-                }
+                // Update the start and end times in the UI
             }
 
             // Get's the URL for the specified
